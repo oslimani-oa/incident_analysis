@@ -306,12 +306,6 @@
             background-color: #c0392b;
             transform: translateY(-2px);
         }
-        .chart-container {
-            display: none;
-        }
-        .chart-container.visible {
-            display: block;
-        }
     </style>
 </head>
 <body>
@@ -364,11 +358,8 @@
             <div class="spinner"></div>
             <p>Processing data...</p>
         </div>
-
-        <div class="chart-container" id="chartContainer">
-            <div class="stats" id="stats" style="display:none;"></div>
-            <div id="chart"></div>
-        </div>
+        <div class="stats" id="stats" style="display:none;"></div>
+        <div id="chart"></div>
     </div>
 
     <script>
@@ -378,7 +369,6 @@
         const loading = document.getElementById('loading');
         const stats = document.getElementById('stats');
         const chart = document.getElementById('chart');
-        const chartContainer = document.getElementById('chartContainer');
         const filters = document.getElementById('filters');
         const filterOptions = document.getElementById('filterOptions');
         const applyFiltersBtn = document.getElementById('applyFilters');
@@ -396,11 +386,21 @@
 
         // Select/Deselect All buttons
         selectAllBtn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-option input[type="checkbox"]').forEach(cb => cb.checked = true);
+            document.querySelectorAll('.filter-option').forEach(option => {
+                const checkbox = option.querySelector('input[type="checkbox"]');
+                const countBadge = option.querySelector('.count');
+                checkbox.checked = true;
+                if (countBadge) countBadge.style.display = 'inline-block';
+            });
         });
 
         deselectAllBtn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-option input[type="checkbox"]').forEach(cb => cb.checked = false);
+            document.querySelectorAll('.filter-option').forEach(option => {
+                const checkbox = option.querySelector('input[type="checkbox"]');
+                const countBadge = option.querySelector('.count');
+                checkbox.checked = false;
+                if (countBadge) countBadge.style.display = 'none';
+            });
         });
 
         // Reset button
@@ -449,7 +449,6 @@
             stats.style.display = 'none';
             chart.innerHTML = '';
             filters.style.display = 'none';
-            chartContainer.classList.remove('visible');
 
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -505,7 +504,7 @@
                 checkbox.type = 'checkbox';
                 checkbox.id = `filter-${index}`;
                 checkbox.value = item;
-                checkbox.checked = true; // All checked by default
+                checkbox.checked = false; // Not checked by default
 
                 const label = document.createElement('label');
                 label.htmlFor = `filter-${index}`;
@@ -514,6 +513,12 @@
                 const countBadge = document.createElement('span');
                 countBadge.className = 'count';
                 countBadge.textContent = counts[item];
+                countBadge.style.display = 'none'; // Hidden by default since unchecked
+
+                // Toggle count visibility when checkbox changes
+                checkbox.addEventListener('change', function() {
+                    countBadge.style.display = this.checked ? 'inline-block' : 'none';
+                });
 
                 div.appendChild(checkbox);
                 div.appendChild(label);
@@ -633,12 +638,11 @@
                 // Create chart
                 createSankeyChart(nodes, sources, targets, values, totalResolved, totalOpened);
                 loading.style.display = 'none';
-                chartContainer.classList.add('visible');
                 updateStep(3);
 
                 // Scroll to chart
                 setTimeout(() => {
-                    chartContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    chart.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }, 100);
 
             } catch (error) {
