@@ -171,6 +171,13 @@
             border-radius: 4px;
             font-size: 12px;
             font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            cursor: pointer;
+        }
+        a.incident-number:hover {
+            background-color: #365a94;
+            text-decoration: none;
         }
     </style>
 </head>
@@ -416,7 +423,7 @@
                 });
 
                 // Build Sankey data
-                const {nodes, sources, targets, values, linkIndexToIncidents, nodeIncidents} = buildSankeyData(diagramData);
+                const {nodes, sources, targets, values, linkIndexToIncidents, nodeIncidents, incidentURLs} = buildSankeyData(diagramData);
 
                 // Display stats
                 stats.innerHTML = `
@@ -427,7 +434,7 @@
                 stats.style.display = 'block';
 
                 // Create chart
-                createSankeyChart(nodes, sources, targets, values, totalResolved, totalOpened, linkIndexToIncidents, nodeIncidents);
+                createSankeyChart(nodes, sources, targets, values, totalResolved, totalOpened, linkIndexToIncidents, nodeIncidents, incidentURLs);
                 loading.style.display = 'none';
 
             } catch (error) {
@@ -459,6 +466,7 @@
             const links = {};
             const linkIncidents = {}; // Track which incidents go through each link
             const nodeIncidents = {}; // Track which incidents go through each node
+            const incidentURLs = {}; // Track URLs for each incident
 
             function addNode(label) {
                 if (!(label in nodeMap)) {
@@ -472,6 +480,13 @@
 
             data.forEach(row => {
                 const incidentNumber = row.IncidentNumber || 'N/A';
+                const incidentURL = row.IncidentURL || '';
+
+                // Store URL for this incident
+                if (incidentURL) {
+                    incidentURLs[incidentNumber] = incidentURL;
+                }
+
                 const configItem = addNode(row.ConfigItem);
                 const typeOfIssue = addNode(row.TypeOfIssue);
                 const assignmentGroup = addNode(row.AssignmentGroup);
@@ -523,10 +538,10 @@
                 linkIndexToIncidents[index] = linkIncidents[key] || [];
             });
 
-            return {nodes: nodesWithCounts, sources, targets, values, linkIndexToIncidents, nodeIncidents};
+            return {nodes: nodesWithCounts, sources, targets, values, linkIndexToIncidents, nodeIncidents, incidentURLs};
         }
 
-        function createSankeyChart(nodes, sources, targets, values, totalResolved, totalOpened, linkIndexToIncidents, nodeIncidents) {
+        function createSankeyChart(nodes, sources, targets, values, totalResolved, totalOpened, linkIndexToIncidents, nodeIncidents, incidentURLs) {
             // Store original data for reset
             const originalNodeColor = '#4472C4';
             const originalLinkColor = 'rgba(0, 0, 0, 0.3)';
@@ -820,10 +835,23 @@
                 incidentNumbersDiv.innerHTML = '';
 
                 incidents.forEach(incident => {
-                    const badge = document.createElement('div');
-                    badge.className = 'incident-number';
-                    badge.textContent = incident;
-                    incidentNumbersDiv.appendChild(badge);
+                    const url = incidentURLs[incident];
+
+                    if (url) {
+                        // Create clickable link for incidents with URLs
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.target = '_blank';
+                        link.className = 'incident-number';
+                        link.textContent = incident;
+                        incidentNumbersDiv.appendChild(link);
+                    } else {
+                        // Create non-clickable badge for incidents without URLs
+                        const badge = document.createElement('div');
+                        badge.className = 'incident-number';
+                        badge.textContent = incident;
+                        incidentNumbersDiv.appendChild(badge);
+                    }
                 });
 
                 incidentListDiv.style.display = 'block';
