@@ -401,8 +401,13 @@
                                  row.IncidentResolutionDate.getMonth() === 10) ?
                                  'Resolved' : 'Active';
 
-                    row.FinalStatus = row.Status === 'Active' ?
-                                     row.IncidentState : row.CloseCode;
+                    // For Active status, use IncidentState
+                    // Special case: if IncidentState is 'Active', rename to 'In Progress' to avoid self-loop
+                    if (row.Status === 'Active') {
+                        row.FinalStatus = row.IncidentState === 'Active' ? 'In Progress' : row.IncidentState;
+                    } else {
+                        row.FinalStatus = row.CloseCode;
+                    }
                 });
 
                 // Apply renaming
