@@ -401,8 +401,13 @@
                                  row.IncidentResolutionDate.getMonth() === 10) ?
                                  'Resolved' : 'Active';
 
-                    row.FinalStatus = row.Status === 'Active' ?
-                                     row.IncidentState : row.CloseCode;
+                    // For Active status, use IncidentState
+                    // Special case: if IncidentState is 'Active', rename to 'In Progress' to avoid self-loop
+                    if (row.Status === 'Active') {
+                        row.FinalStatus = row.IncidentState === 'Active' ? 'In Progress' : row.IncidentState;
+                    } else {
+                        row.FinalStatus = row.CloseCode;
+                    }
                 });
 
                 // Apply renaming
@@ -607,11 +612,15 @@
                 if (!eventData.points || !eventData.points[0]) return;
 
                 const point = eventData.points[0];
+                console.log('Click detected:', point);
 
                 // Check if it's a link click (has source and target)
                 if (point.source !== undefined && point.target !== undefined) {
+                    console.log('LINK CLICK - Link index:', point.pointNumber, 'From:', point.source, 'To:', point.target);
+
                     // If same link clicked, reset
                     if (selectedLink === point.pointNumber) {
+                        console.log('Same link clicked - resetting');
                         resetHighlight();
                         return;
                     }
@@ -625,9 +634,11 @@
                 // Check if it's a node click (has label with content, no source/target)
                 if (point.pointNumber !== undefined && point.label && point.label.length > 0) {
                     const clickedNodeIndex = point.pointNumber;
+                    console.log('NODE CLICK - Node index:', clickedNodeIndex, 'Label:', point.label);
 
                     // If same node clicked, reset
                     if (selectedNode === clickedNodeIndex) {
+                        console.log('Same node clicked - resetting');
                         resetHighlight();
                         return;
                     }
@@ -736,6 +747,8 @@
             }
 
             function highlightSpecificPath(linkIndex) {
+                console.log('highlightSpecificPath - Link index:', linkIndex);
+
                 // Highlight only the path through a specific link
                 const connectedNodes = new Set();
                 const connectedLinks = new Set([linkIndex]);
@@ -743,6 +756,8 @@
                 const sourceNode = sources[linkIndex];
                 const targetNode = targets[linkIndex];
                 const linkValue = values[linkIndex]; // The number of incidents in this specific link
+
+                console.log('Source node:', sourceNode, 'Target node:', targetNode, 'Link value:', linkValue);
 
                 connectedNodes.add(sourceNode);
                 connectedNodes.add(targetNode);
@@ -823,10 +838,13 @@
 
                 // Show ONLY incidents from the clicked link itself
                 const linkIncidents = linkIndexToIncidents[linkIndex] || [];
+                console.log('Incidents for link', linkIndex, ':', linkIncidents);
                 showIncidents(linkIncidents.sort());
             }
 
             function showIncidents(incidents) {
+                console.log('showIncidents called with', incidents.length, 'incidents:', incidents);
+
                 const incidentListDiv = document.getElementById('incidentList');
                 const incidentNumbersDiv = document.getElementById('incidentNumbers');
                 const incidentCountSpan = document.getElementById('incidentCount');
@@ -836,6 +854,7 @@
 
                 incidents.forEach(incident => {
                     const url = incidentURLs[incident];
+                    console.log('Incident:', incident, 'URL:', url);
 
                     if (url) {
                         // Create clickable link for incidents with URLs
@@ -845,12 +864,14 @@
                         link.className = 'incident-number';
                         link.textContent = incident;
                         incidentNumbersDiv.appendChild(link);
+                        console.log('Created clickable link for', incident);
                     } else {
                         // Create non-clickable badge for incidents without URLs
                         const badge = document.createElement('div');
                         badge.className = 'incident-number';
                         badge.textContent = incident;
                         incidentNumbersDiv.appendChild(badge);
+                        console.log('Created badge (no URL) for', incident);
                     }
                 });
 
