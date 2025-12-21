@@ -736,6 +736,17 @@
         }
 
         function createSankeyChart(nodes, sources, targets, values, totalResolved, totalOpened) {
+            // Variables for interactive features
+            const originalNodeColor = '#4472C4';
+            const originalLinkColor = 'rgba(0, 0, 0, 0.3)';
+            let selectedNode = null;
+            let selectedLink = null;
+
+            // Incident tracking (empty for uploaded files, populated for hardcoded data)
+            const linkIndexToIncidents = {};
+            const nodeIncidents = {};
+            const incidentURLs = {};
+
             const data = [{
                 type: 'sankey',
                 node: {
