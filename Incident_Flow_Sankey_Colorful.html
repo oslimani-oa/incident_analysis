@@ -306,12 +306,6 @@
             background-color: #c0392b;
             transform: translateY(-2px);
         }
-        .chart-container {
-            display: none;
-        }
-        .chart-container.visible {
-            display: block;
-        }
     </style>
 </head>
 <body>
@@ -364,11 +358,8 @@
             <div class="spinner"></div>
             <p>Processing data...</p>
         </div>
-
-        <div class="chart-container" id="chartContainer">
-            <div class="stats" id="stats" style="display:none;"></div>
-            <div id="chart"></div>
-        </div>
+        <div class="stats" id="stats" style="display:none;"></div>
+        <div id="chart"></div>
     </div>
 
     <script>
@@ -378,7 +369,6 @@
         const loading = document.getElementById('loading');
         const stats = document.getElementById('stats');
         const chart = document.getElementById('chart');
-        const chartContainer = document.getElementById('chartContainer');
         const filters = document.getElementById('filters');
         const filterOptions = document.getElementById('filterOptions');
         const applyFiltersBtn = document.getElementById('applyFilters');
@@ -396,11 +386,21 @@
 
         // Select/Deselect All buttons
         selectAllBtn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-option input[type="checkbox"]').forEach(cb => cb.checked = true);
+            document.querySelectorAll('.filter-option').forEach(option => {
+                const checkbox = option.querySelector('input[type="checkbox"]');
+                const countBadge = option.querySelector('.count');
+                checkbox.checked = true;
+                if (countBadge) countBadge.style.display = 'inline-block';
+            });
         });
 
         deselectAllBtn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-option input[type="checkbox"]').forEach(cb => cb.checked = false);
+            document.querySelectorAll('.filter-option').forEach(option => {
+                const checkbox = option.querySelector('input[type="checkbox"]');
+                const countBadge = option.querySelector('.count');
+                checkbox.checked = false;
+                if (countBadge) countBadge.style.display = 'none';
+            });
         });
 
         // Reset button
@@ -449,7 +449,6 @@
             stats.style.display = 'none';
             chart.innerHTML = '';
             filters.style.display = 'none';
-            chartContainer.classList.remove('visible');
 
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -505,7 +504,7 @@
                 checkbox.type = 'checkbox';
                 checkbox.id = `filter-${index}`;
                 checkbox.value = item;
-                checkbox.checked = true; // All checked by default
+                checkbox.checked = false; // Not checked by default
 
                 const label = document.createElement('label');
                 label.htmlFor = `filter-${index}`;
@@ -514,6 +513,12 @@
                 const countBadge = document.createElement('span');
                 countBadge.className = 'count';
                 countBadge.textContent = counts[item];
+                countBadge.style.display = 'none'; // Hidden by default since unchecked
+
+                // Toggle count visibility when checkbox changes
+                checkbox.addEventListener('change', function() {
+                    countBadge.style.display = this.checked ? 'inline-block' : 'none';
+                });
 
                 div.appendChild(checkbox);
                 div.appendChild(label);
@@ -589,8 +594,13 @@
                                  row.IncidentResolutionDate.getUTCMonth() === 10) ?
                                  'Resolved' : 'Active';
 
-                    row.FinalStatus = row.Status === 'Active' ?
-                                     row.IncidentState : row.CloseCode;
+                    // For Active status, use IncidentState
+                    // Special case: if IncidentState is 'Active', rename to 'In Progress' to avoid self-loop
+                    if (row.Status === 'Active') {
+                        row.FinalStatus = row.IncidentState === 'Active' ? 'In Progress' : row.IncidentState;
+                    } else {
+                        row.FinalStatus = row.CloseCode;
+                    }
                 });
 
                 // Apply renaming
@@ -633,12 +643,11 @@
                 // Create chart
                 createSankeyChart(nodes, sources, targets, values, totalResolved, totalOpened);
                 loading.style.display = 'none';
-                chartContainer.classList.add('visible');
                 updateStep(3);
 
                 // Scroll to chart
                 setTimeout(() => {
-                    chartContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    chart.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }, 100);
 
             } catch (error) {
@@ -729,34 +738,46 @@
         }
 
         function createSankeyChart(nodes, sources, targets, values, totalResolved, totalOpened) {
+            // Store original data for reset
+            const originalNodeColor = '#4472C4';
+            const originalLinkColor = 'rgba(0, 0, 0, 0.3)';
+            let selectedNode = null;
+
             const data = [{
                 type: 'sankey',
                 node: {
                     pad: 15,
-                    thickness: 20,
+                    thickness: 30,
                     line: {
                         color: 'black',
                         width: 0.5
                     },
-                    label: nodes
+                    label: nodes,
+                    color: Array(nodes.length).fill(originalNodeColor),
+                    font: {
+                        size: 28,
+                        color: '#000',
+                        family: 'Arial Black, Impact, sans-serif',
+                        weight: 'bold'
+                    }
                 },
                 link: {
                     source: sources,
                     target: targets,
                     value: values,
-                    color: 'rgba(0, 0, 0, 0.3)'
+                    color: Array(sources.length).fill(originalLinkColor)
                 }
             }];
 
             const layout = {
                 title: {
-                    text: `Incident Flow Analysis - Sankey Diagram<br><sub>Total of resolved incidents: ${totalResolved} | Total of opened incidents: ${totalOpened}</sub>`,
+                    text: `Incident Flow Analysis - Sankey Diagram<br><sub>Total of resolved incidents: ${totalResolved} | Total of opened incidents: ${totalOpened}</sub><br><i style="font-size: 10px;">Click on any node to highlight its path</i>`,
                     x: 0.5,
                     xanchor: 'center'
                 },
-                font: {size: 10},
+                font: {size: 12},
                 height: 800,
-                margin: {l: 10, r: 10, t: 80, b: 10}
+                margin: {l: 10, r: 10, t: 100, b: 10}
             };
 
             const config = {
@@ -766,6 +787,106 @@
             };
 
             Plotly.newPlot('chart', data, layout, config);
+
+            // Add click event for interactive highlighting
+            const chartElement = document.getElementById('chart');
+
+            chartElement.on('plotly_click', function(eventData) {
+                if (!eventData.points || !eventData.points[0]) return;
+
+                const point = eventData.points[0];
+
+                // Check if it's a node click
+                if (point.pointNumber !== undefined && point.label) {
+                    const clickedNodeIndex = point.pointNumber;
+
+                    // If same node clicked, reset
+                    if (selectedNode === clickedNodeIndex) {
+                        resetHighlight();
+                        return;
+                    }
+
+                    selectedNode = clickedNodeIndex;
+                    highlightPath(clickedNodeIndex);
+                }
+            });
+
+            function highlightPath(nodeIndex) {
+                // Find all connected nodes and links using BFS
+                const connectedNodes = new Set([nodeIndex]);
+                const connectedLinks = new Set();
+
+                // Build adjacency lists for faster lookup
+                const downstreamMap = new Map(); // node -> [linkIndex, targetNode][]
+                const upstreamMap = new Map();   // node -> [linkIndex, sourceNode][]
+
+                sources.forEach((source, linkIndex) => {
+                    if (!downstreamMap.has(source)) downstreamMap.set(source, []);
+                    downstreamMap.get(source).push([linkIndex, targets[linkIndex]]);
+
+                    const target = targets[linkIndex];
+                    if (!upstreamMap.has(target)) upstreamMap.set(target, []);
+                    upstreamMap.get(target).push([linkIndex, source]);
+                });
+
+                // BFS for downstream connections
+                const downstreamQueue = [nodeIndex];
+                const downstreamVisited = new Set([nodeIndex]);
+
+                while (downstreamQueue.length > 0) {
+                    const currentNode = downstreamQueue.shift();
+                    const downstream = downstreamMap.get(currentNode) || [];
+
+                    downstream.forEach(([linkIndex, targetNode]) => {
+                        connectedLinks.add(linkIndex);
+                        if (!downstreamVisited.has(targetNode)) {
+                            downstreamVisited.add(targetNode);
+                            connectedNodes.add(targetNode);
+                            downstreamQueue.push(targetNode);
+                        }
+                    });
+                }
+
+                // BFS for upstream connections
+                const upstreamQueue = [nodeIndex];
+                const upstreamVisited = new Set([nodeIndex]);
+
+                while (upstreamQueue.length > 0) {
+                    const currentNode = upstreamQueue.shift();
+                    const upstream = upstreamMap.get(currentNode) || [];
+
+                    upstream.forEach(([linkIndex, sourceNode]) => {
+                        connectedLinks.add(linkIndex);
+                        if (!upstreamVisited.has(sourceNode)) {
+                            upstreamVisited.add(sourceNode);
+                            connectedNodes.add(sourceNode);
+                            upstreamQueue.push(sourceNode);
+                        }
+                    });
+                }
+
+                // Update colors
+                const nodeColors = nodes.map((_, idx) =>
+                    connectedNodes.has(idx) ? originalNodeColor : 'rgba(200, 200, 200, 0.3)'
+                );
+
+                const linkColors = sources.map((_, idx) =>
+                    connectedLinks.has(idx) ? 'rgba(68, 114, 196, 0.5)' : 'rgba(200, 200, 200, 0.1)'
+                );
+
+                Plotly.restyle('chart', {
+                    'node.color': [nodeColors],
+                    'link.color': [linkColors]
+                });
+            }
+
+            function resetHighlight() {
+                selectedNode = null;
+                Plotly.restyle('chart', {
+                    'node.color': [Array(nodes.length).fill(originalNodeColor)],
+                    'link.color': [Array(sources.length).fill(originalLinkColor)]
+                });
+            }
         }
 
         function showError(message) {
