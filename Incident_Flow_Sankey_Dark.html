@@ -836,18 +836,39 @@
                 if (!eventData.points || !eventData.points[0]) return;
 
                 const point = eventData.points[0];
+                console.log('Click detected:', point);
 
-                // Check if it's a node click
-                if (point.pointNumber !== undefined && point.label) {
+                // Check if it's a link click (has source and target)
+                if (point.source !== undefined && point.target !== undefined) {
+                    console.log('LINK CLICK - Link index:', point.pointNumber, 'From:', point.source, 'To:', point.target);
+
+                    // If same link clicked, reset
+                    if (selectedLink === point.pointNumber) {
+                        console.log('Same link clicked - resetting');
+                        resetHighlight();
+                        return;
+                    }
+
+                    selectedLink = point.pointNumber;
+                    selectedNode = null;
+                    highlightSpecificPath(point.pointNumber);
+                    return;
+                }
+
+                // Check if it's a node click (has label with content, no source/target)
+                if (point.pointNumber !== undefined && point.label && point.label.length > 0) {
                     const clickedNodeIndex = point.pointNumber;
+                    console.log('NODE CLICK - Node index:', clickedNodeIndex, 'Label:', point.label);
 
                     // If same node clicked, reset
                     if (selectedNode === clickedNodeIndex) {
+                        console.log('Same node clicked - resetting');
                         resetHighlight();
                         return;
                     }
 
                     selectedNode = clickedNodeIndex;
+                    selectedLink = null;
                     highlightPath(clickedNodeIndex);
                 }
             });
