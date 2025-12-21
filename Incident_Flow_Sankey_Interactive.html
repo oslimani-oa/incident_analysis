@@ -377,20 +377,20 @@
                     };
                 });
 
-                // Count for subtitle
+                // Count for subtitle (using UTC to match Python pandas behavior)
                 const totalOpened = filteredData.filter(row =>
-                    row.IncidentCreationDate && row.IncidentCreationDate.getMonth() === 10 // November = month 10
+                    row.IncidentCreationDate && row.IncidentCreationDate.getUTCMonth() === 10 // November = month 10 (0-indexed)
                 ).length;
 
                 const totalResolved = filteredData.filter(row =>
-                    row.IncidentResolutionDate && row.IncidentResolutionDate.getMonth() === 10
+                    row.IncidentResolutionDate && row.IncidentResolutionDate.getUTCMonth() === 10
                 ).length;
 
                 // Filter for diagram
                 const activeStates = ['Awaiting Change', 'Awaiting User Info', 'Active'];
                 const diagramData = filteredData.filter(row => {
                     const resolvedInNov = row.IncidentResolutionDate &&
-                                         row.IncidentResolutionDate.getMonth() === 10;
+                                         row.IncidentResolutionDate.getUTCMonth() === 10;
                     const isActive = activeStates.includes(row.IncidentState);
                     return resolvedInNov || isActive;
                 });
@@ -398,7 +398,7 @@
                 // Classify status
                 diagramData.forEach(row => {
                     row.Status = (row.IncidentResolutionDate &&
-                                 row.IncidentResolutionDate.getMonth() === 10) ?
+                                 row.IncidentResolutionDate.getUTCMonth() === 10) ?
                                  'Resolved' : 'Active';
 
                     // For Active status, use IncidentState
@@ -457,7 +457,11 @@
 
             // If Excel serial number
             if (typeof excelDate === 'number') {
-                const date = new Date((excelDate - 25569) * 86400 * 1000);
+                // Excel dates are days since 1899-12-30 (accounting for Excel's 1900 leap year bug)
+                // Match pandas behavior exactly
+                const millisecondsPerDay = 24 * 60 * 60 * 1000;
+                const excelEpoch = new Date(Date.UTC(1899, 11, 30)); // December 30, 1899
+                const date = new Date(excelEpoch.getTime() + excelDate * millisecondsPerDay);
                 return date;
             }
 
