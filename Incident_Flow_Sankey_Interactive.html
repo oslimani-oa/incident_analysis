@@ -27,15 +27,10 @@
         }
         .upload-section {
             text-align: center;
-            padding: 30px;
-            background-color: #f9f9f9;
-            border: 2px dashed #ccc;
-            border-radius: 8px;
             margin-bottom: 20px;
         }
         .upload-section.dragover {
             background-color: #e3f2fd;
-            border-color: #2196F3;
         }
         input[type="file"] {
             display: none;
@@ -105,6 +100,7 @@
             border-radius: 8px;
             margin-bottom: 20px;
             display: none;
+            text-align: center;
         }
         .filters h3 {
             margin-top: 0;
@@ -115,6 +111,7 @@
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 10px;
             margin-bottom: 15px;
+            text-align: left;
         }
         .filter-option {
             display: flex;
@@ -131,17 +128,17 @@
             user-select: none;
         }
         .apply-btn {
-            background-color: #2196F3;
+            background-color: #4CAF50;
             color: white;
-            padding: 10px 20px;
-            font-size: 14px;
+            padding: 12px 24px;
+            font-size: 16px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             transition: background-color 0.3s;
         }
         .apply-btn:hover {
-            background-color: #0b7dda;
+            background-color: #45a049;
         }
         .apply-btn:disabled {
             background-color: #ccc;
@@ -183,29 +180,15 @@
 </head>
 <body>
     <div class="container">
-        <h1>Incident Flow App</h1>
+        <h1>Sankey diagram</h1>
 
         <div class="upload-section" id="dropZone">
-            <label for="fileInput" class="upload-btn">Choose Excel File</label>
+            <label for="fileInput" class="upload-btn">Choose file</label>
             <input type="file" id="fileInput" accept=".xlsx,.xls" />
-            <div class="info">
-                Or drag and drop your Excel file here<br>
-                <small><strong>Step 1:</strong> Upload your Excel file<br>
-                <strong>Step 2:</strong> Select which ConfigItems to display (auto-detected from your file)<br>
-                <strong>Step 3:</strong> Click "Generate Sankey Diagram"<br><br>
-                <strong>Required columns (in any order):</strong><br>
-                1. IncidentCreationDate (date)<br>
-                2. IncidentResolutionDate (date)<br>
-                3. ConfigItem (text: any value, e.g., "SDDS Supply Chain", "OCS Reports")<br>
-                4. TypeOfIssue (text: e.g., "Data Quality", "Application Anomaly")<br>
-                5. AssignmentGroup (text: e.g., "L2 RUN FTS Supply", "L1", "L3")<br>
-                6. IncidentState (text: e.g., "Resolved", "Active", "Awaiting Change")<br>
-                7. CloseCode (text: e.g., "Solved", "Known Error", "Cancelled")</small>
-            </div>
         </div>
 
         <div class="filters" id="filters">
-            <h3>Select ConfigItems to Display</h3>
+            <h3>Select the Configuration item to display</h3>
             <div class="filter-options" id="filterOptions">
                 <!-- Checkboxes will be dynamically generated here -->
             </div>
@@ -317,7 +300,8 @@
                     loading.style.display = 'none';
                     filters.style.display = 'block';
 
-                    showSuccess(`File loaded successfully! Found ${uniqueConfigItems.length} ConfigItems. Select which ones to display and click "Generate Sankey Diagram"`);
+                    // Success message removed for cleaner UI
+                    // showSuccess(`File loaded successfully! Found ${uniqueConfigItems.length} ConfigItems. Select which ones to display and click "Generate Sankey Diagram"`);
                 } catch (error) {
                     console.error('[ERROR] File reading error:', error);
                     showError('Error reading file: ' + error.message);
@@ -667,14 +651,10 @@
             }];
 
             const layout = {
-                title: {
-                    text: `Incident Flow Analysis - Sankey Diagram<br><sub>Total of resolved incidents: ${totalResolved} | Total of opened incidents: ${totalOpened}</sub><br><i style="font-size: 10px;">Click on a node to highlight all paths | Click on a flow/link to highlight that specific path</i>`,
-                    x: 0.5,
-                    xanchor: 'center'
-                },
+                title: null,
                 font: {size: 12},
                 height: 800,
-                margin: {l: 10, r: 10, t: 100, b: 10}
+                margin: {l: 10, r: 10, t: 40, b: 10}
             };
 
             const config = {
