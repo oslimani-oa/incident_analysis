@@ -227,6 +227,11 @@
     </div>
 
     <script>
+        console.log('[DEBUG] ========================================');
+        console.log('[DEBUG] Incident Flow Interactive - Debug Mode');
+        console.log('[DEBUG] Page loaded at:', new Date().toISOString());
+        console.log('[DEBUG] ========================================');
+
         const fileInput = document.getElementById('fileInput');
         const dropZone = document.getElementById('dropZone');
         const errorMsg = document.getElementById('errorMsg');
@@ -269,6 +274,8 @@
             const file = fileInput.files[0];
             if (!file) return;
 
+            console.log('[DEBUG] File selected:', file.name, 'Size:', file.size, 'bytes');
+
             errorMsg.style.display = 'none';
             loading.style.display = 'block';
             stats.style.display = 'none';
@@ -278,10 +285,15 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
+                    console.log('[DEBUG] File loaded, parsing Excel data...');
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
+                    console.log('[DEBUG] Workbook sheets:', workbook.SheetNames);
+
                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                     const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    console.log('[DEBUG] Rows parsed:', jsonData.length);
+                    console.log('[DEBUG] Sample row:', jsonData[0]);
 
                     uploadedData = jsonData;
 
@@ -291,6 +303,8 @@
                             .map(row => row.ConfigItem)
                             .filter(item => item !== undefined && item !== null && item !== '')
                     )].sort();
+                    console.log('[DEBUG] Unique ConfigItems found:', uniqueConfigItems.length);
+                    console.log('[DEBUG] ConfigItems:', uniqueConfigItems);
 
                     if (uniqueConfigItems.length === 0) {
                         showError('No ConfigItem values found in the uploaded file. Please check the ConfigItem column.');
@@ -305,6 +319,7 @@
 
                     showSuccess(`File loaded successfully! Found ${uniqueConfigItems.length} ConfigItems. Select which ones to display and click "Generate Sankey Diagram"`);
                 } catch (error) {
+                    console.error('[ERROR] File reading error:', error);
                     showError('Error reading file: ' + error.message);
                 }
             };
@@ -312,6 +327,7 @@
         }
 
         function generateFilterCheckboxes(configItems) {
+            console.log('[DEBUG] Generating filter checkboxes for', configItems.length, 'items');
             filterOptions.innerHTML = ''; // Clear existing checkboxes
 
             configItems.forEach((item, index) => {
@@ -332,10 +348,14 @@
                 div.appendChild(label);
                 filterOptions.appendChild(div);
             });
+            console.log('[DEBUG] Filter checkboxes generated, all checked by default');
         }
 
         function generateDiagram() {
+            console.log('[DEBUG] Generate diagram button clicked');
+
             if (!uploadedData) {
+                console.warn('[WARN] No data uploaded');
                 showError('Please upload a file first');
                 return;
             }
@@ -343,8 +363,10 @@
             // Get selected ConfigItems
             const checkboxes = document.querySelectorAll('.filter-option input[type="checkbox"]:checked');
             const selectedConfigItems = Array.from(checkboxes).map(cb => cb.value);
+            console.log('[DEBUG] Selected ConfigItems:', selectedConfigItems.length, selectedConfigItems);
 
             if (selectedConfigItems.length === 0) {
+                console.warn('[WARN] No ConfigItems selected');
                 showError('Please select at least one ConfigItem');
                 return;
             }
@@ -357,16 +379,20 @@
             try {
                 processData(uploadedData, selectedConfigItems);
             } catch (error) {
+                console.error('[ERROR] Diagram generation error:', error);
                 showError('Error generating diagram: ' + error.message);
             }
         }
 
         function processData(data, selectedConfigItems) {
             try {
+                console.log('[DEBUG] Processing data, total rows:', data.length);
+
                 // Filter to selected ConfigItems
                 let filteredData = data.filter(row =>
                     selectedConfigItems.includes(row.ConfigItem)
                 );
+                console.log('[DEBUG] After ConfigItem filter:', filteredData.length, 'rows');
 
                 // Parse dates
                 filteredData = filteredData.map(row => {
@@ -375,6 +401,10 @@
                         IncidentCreationDate: parseExcelDate(row.IncidentCreationDate),
                         IncidentResolutionDate: parseExcelDate(row.IncidentResolutionDate)
                     };
+                });
+                console.log('[DEBUG] Sample parsed dates:', {
+                    creation: filteredData[0]?.IncidentCreationDate,
+                    resolution: filteredData[0]?.IncidentResolutionDate
                 });
 
                 // Count for subtitle (using UTC to match Python pandas behavior)
@@ -385,6 +415,7 @@
                 const totalResolved = filteredData.filter(row =>
                     row.IncidentResolutionDate && row.IncidentResolutionDate.getUTCMonth() === 10
                 ).length;
+                console.log('[DEBUG] Counts - Opened:', totalOpened, 'Resolved:', totalResolved);
 
                 // Filter for diagram
                 const activeStates = ['Awaiting Change', 'Awaiting User Info', 'Active'];
@@ -394,6 +425,7 @@
                     const isActive = activeStates.includes(row.IncidentState);
                     return resolvedInNov || isActive;
                 });
+                console.log('[DEBUG] After state filter (resolved in Nov OR active):', diagramData.length, 'rows');
 
                 // Classify status
                 diagramData.forEach(row => {
@@ -426,9 +458,13 @@
                         }
                     });
                 });
+                console.log('[DEBUG] Field renaming complete');
 
                 // Build Sankey data
-                const {nodes, sources, targets, values, linkIndexToIncidents, nodeIncidents, incidentURLs} = buildSankeyData(diagramData);
+                console.log('[DEBUG] Building Sankey data structure...');
+                const {nodes, sources, targets, values, linkIndexToIncidents, nodeIncidents, incidentURLs, incidentPaths} = buildSankeyData(diagramData);
+                console.log('[DEBUG] Sankey nodes:', nodes.length);
+                console.log('[DEBUG] Sankey links:', sources.length);
 
                 // Display stats
                 stats.innerHTML = `
@@ -439,10 +475,14 @@
                 stats.style.display = 'block';
 
                 // Create chart
-                createSankeyChart(nodes, sources, targets, values, totalResolved, totalOpened, linkIndexToIncidents, nodeIncidents, incidentURLs);
+                console.log('[DEBUG] Creating Plotly chart...');
+                createSankeyChart(nodes, sources, targets, values, totalResolved, totalOpened, linkIndexToIncidents, nodeIncidents, incidentURLs, incidentPaths);
                 loading.style.display = 'none';
+                console.log('[DEBUG] Chart created successfully');
 
             } catch (error) {
+                console.error('[ERROR] Data processing error:', error);
+                console.error('[ERROR] Stack trace:', error.stack);
                 showError('Error processing data: ' + error.message);
             }
         }
@@ -469,6 +509,7 @@
         }
 
         function buildSankeyData(data) {
+            console.log('[DEBUG] Building Sankey from', data.length, 'rows');
             const nodes = [];
             const nodeMap = {};
             const nodeCounts = {};
@@ -476,6 +517,7 @@
             const linkIncidents = {}; // Track which incidents go through each link
             const nodeIncidents = {}; // Track which incidents go through each node
             const incidentURLs = {}; // Track URLs for each incident
+            const incidentPaths = {}; // Track the complete path for each incident
 
             function addNode(label) {
                 if (!(label in nodeMap)) {
@@ -487,7 +529,7 @@
                 return nodeMap[label];
             }
 
-            data.forEach(row => {
+            data.forEach((row, idx) => {
                 const incidentNumber = row.IncidentNumber || 'N/A';
                 const incidentURL = row.IncidentURL || '';
 
@@ -495,11 +537,36 @@
                 if (incidentURL) {
                     incidentURLs[incidentNumber] = incidentURL;
                 }
+
+                if (idx === 0) {
+                    console.log('[DEBUG] First row incident:', incidentNumber);
+                }
                 const configItem = addNode(row.ConfigItem);
                 const typeOfIssue = addNode(row.TypeOfIssue);
                 const assignmentGroup = addNode(row.AssignmentGroup);
                 const status = addNode(row.Status);
                 const finalStatus = addNode(row.FinalStatus);
+
+                if (idx === 0) {
+                    console.log('[DEBUG] First row flow:',
+                        row.ConfigItem, '->',
+                        row.TypeOfIssue, '->',
+                        row.AssignmentGroup, '->',
+                        row.Status, '->',
+                        row.FinalStatus
+                    );
+                }
+
+                // Store the complete path for this incident
+                incidentPaths[incidentNumber] = {
+                    nodes: [configItem, typeOfIssue, assignmentGroup, status, finalStatus],
+                    links: [
+                        `${configItem}-${typeOfIssue}`,
+                        `${typeOfIssue}-${assignmentGroup}`,
+                        `${assignmentGroup}-${status}`,
+                        `${status}-${finalStatus}`
+                    ]
+                };
 
                 // Count nodes and track incidents per node
                 [configItem, typeOfIssue, assignmentGroup, status, finalStatus].forEach(nodeId => {
@@ -531,6 +598,7 @@
             const nodesWithCounts = nodes.map((label, idx) =>
                 `${label} (${nodeCounts[idx]})`
             );
+            console.log('[DEBUG] Node labels with counts:', nodesWithCounts);
 
             // Prepare arrays for Plotly
             const sources = [];
@@ -545,11 +613,20 @@
                 values.push(links[key]);
                 linkIndexToIncidents[index] = linkIncidents[key] || [];
             });
+            console.log('[DEBUG] Total links created:', sources.length);
+            console.log('[DEBUG] Total incidents tracked:', Object.keys(incidentURLs).length);
 
-            return {nodes: nodesWithCounts, sources, targets, values, linkIndexToIncidents, nodeIncidents, incidentURLs};
+            return {nodes: nodesWithCounts, sources, targets, values, linkIndexToIncidents, nodeIncidents, incidentURLs, incidentPaths};
         }
 
-        function createSankeyChart(nodes, sources, targets, values, totalResolved, totalOpened, linkIndexToIncidents, nodeIncidents, incidentURLs) {
+        function createSankeyChart(nodes, sources, targets, values, totalResolved, totalOpened, linkIndexToIncidents, nodeIncidents, incidentURLs, incidentPaths) {
+            console.log('[DEBUG] Creating Sankey chart with:', {
+                nodes: nodes.length,
+                links: sources.length,
+                totalResolved,
+                totalOpened
+            });
+
             // Store original data for reset
             const originalNodeColor = '#4472C4';
             const originalLinkColor = 'rgba(0, 0, 0, 0.3)';
@@ -606,20 +683,26 @@
                 modeBarButtonsToRemove: ['lasso2d', 'select2d']
             };
 
-            Plotly.newPlot('chart', data, layout, config);
+            console.log('[DEBUG] Calling Plotly.newPlot...');
+            Plotly.newPlot('chart', data, layout, config)
+                .then(() => console.log('[DEBUG] Plotly chart rendered successfully'))
+                .catch(err => console.error('[ERROR] Plotly rendering error:', err));
 
             // Add click event for interactive highlighting
             const chartElement = document.getElementById('chart');
 
             chartElement.on('plotly_click', function(eventData) {
+                console.log('[DEBUG] Chart element clicked:', eventData);
                 if (!eventData.points || !eventData.points[0]) return;
 
                 const point = eventData.points[0];
 
                 // Check if it's a link click (has source and target)
                 if (point.source !== undefined && point.target !== undefined) {
+                    console.log('[DEBUG] Link clicked:', point.pointNumber);
                     // If same link clicked, reset
                     if (selectedLink === point.pointNumber) {
+                        console.log('[DEBUG] Same link clicked, resetting highlight');
                         resetHighlight();
                         return;
                     }
@@ -633,9 +716,11 @@
                 // Check if it's a node click (has label with content, no source/target)
                 if (point.pointNumber !== undefined && point.label && point.label.length > 0) {
                     const clickedNodeIndex = point.pointNumber;
+                    console.log('[DEBUG] Node clicked:', clickedNodeIndex, point.label);
 
                     // If same node clicked, reset
                     if (selectedNode === clickedNodeIndex) {
+                        console.log('[DEBUG] Same node clicked, resetting highlight');
                         resetHighlight();
                         return;
                     }
@@ -647,6 +732,7 @@
             });
 
             function highlightPath(nodeIndex) {
+                console.log('[DEBUG] highlightPath called for node:', nodeIndex, nodes[nodeIndex]);
                 // Find all connected nodes and links using BFS
                 const connectedNodes = new Set([nodeIndex]);
                 const connectedLinks = new Set();
@@ -701,6 +787,9 @@
                 }
 
 
+                console.log('[DEBUG] Connected nodes:', Array.from(connectedNodes).map(i => nodes[i]));
+                console.log('[DEBUG] Connected links count:', connectedLinks.size);
+
                 // Recalculate node counts based on highlighted links
                 const incomingCounts = Array(nodes.length).fill(0);
                 const outgoingCounts = Array(nodes.length).fill(0);
@@ -711,13 +800,16 @@
                     const tgt = targets[linkIndex];
                     outgoingCounts[src] += value;
                     incomingCounts[tgt] += value;
+                    console.log('[DEBUG] Link', linkIndex, ':', nodes[src], '->', nodes[tgt], 'value:', value);
                 });
 
+                console.log('[DEBUG] Node count recalculation:');
                 // Update node labels with new counts
                 const updatedLabels = nodes.map((_, idx) => {
                     if (connectedNodes.has(idx)) {
                         // Use max of incoming/outgoing as the node count (they should be equal for proper flow)
                         const count = Math.max(incomingCounts[idx], outgoingCounts[idx]);
+                        console.log('[DEBUG]   Node', idx, nodeBaseNames[idx], '- incoming:', incomingCounts[idx], 'outgoing:', outgoingCounts[idx], 'final:', count);
                         return `${nodeBaseNames[idx]} (${count})`;
                     }
                     return originalNodes[idx]; // Keep original for dimmed nodes
@@ -732,6 +824,8 @@
                     connectedLinks.has(idx) ? 'rgba(68, 114, 196, 0.5)' : 'rgba(200, 200, 200, 0.1)'
                 );
 
+                console.log('[DEBUG] Updated labels:', updatedLabels.filter((_, idx) => connectedNodes.has(idx)));
+
                 Plotly.restyle('chart', {
                     'node.color': [nodeColors],
                     'node.label': [updatedLabels],
@@ -740,76 +834,74 @@
 
                 // Show ONLY incidents that belong to this specific node
                 const incidents = nodeIncidents[nodeIndex] || [];
+                console.log('[DEBUG] Showing', incidents.length, 'incidents for node', nodeIndex);
                 showIncidents(incidents.sort());
             }
 
             function highlightSpecificPath(linkIndex) {
-                // Highlight only the path through a specific link
-                const connectedNodes = new Set();
-                const connectedLinks = new Set([linkIndex]);
+                console.log('[DEBUG] highlightSpecificPath called for link:', linkIndex);
+                console.log('[DEBUG] Link details:', nodes[sources[linkIndex]], '->', nodes[targets[linkIndex]], 'value:', values[linkIndex]);
 
                 const sourceNode = sources[linkIndex];
                 const targetNode = targets[linkIndex];
                 const linkValue = values[linkIndex]; // The number of incidents in this specific link
 
-                connectedNodes.add(sourceNode);
-                connectedNodes.add(targetNode);
+                console.log('[DEBUG] Source node:', sourceNode, nodes[sourceNode]);
+                console.log('[DEBUG] Target node:', targetNode, nodes[targetNode]);
+                console.log('[DEBUG] Link value (incident count):', linkValue);
 
+                // Get the incidents that go through this specific link
+                const selectedIncidents = linkIndexToIncidents[linkIndex] || [];
+                console.log('[DEBUG] Incidents in this link:', selectedIncidents);
 
-                // Build adjacency maps
-                const downstreamMap = new Map();
-                const upstreamMap = new Map();
+                // Build the ACTUAL path by finding which nodes these specific incidents passed through
+                const connectedNodes = new Set();
+                const connectedLinks = new Set();
+                const linkKeyToIndex = {};
 
-                sources.forEach((source, idx) => {
-                    if (!downstreamMap.has(source)) downstreamMap.set(source, []);
-                    downstreamMap.get(source).push([idx, targets[idx]]);
-
-                    const target = targets[idx];
-                    if (!upstreamMap.has(target)) upstreamMap.set(target, []);
-                    upstreamMap.get(target).push([idx, source]);
+                // Build a map from link key to link index
+                sources.forEach((src, idx) => {
+                    const key = `${src}-${targets[idx]}`;
+                    linkKeyToIndex[key] = idx;
                 });
 
-                // Trace downstream from target node
-                const downstreamQueue = [targetNode];
-                const downstreamVisited = new Set([targetNode]);
+                // For each incident in the clicked link, trace its actual path
+                selectedIncidents.forEach(incidentNumber => {
+                    const path = incidentPaths[incidentNumber];
+                    if (path) {
+                        // Add all nodes this incident actually passed through
+                        path.nodes.forEach(nodeId => connectedNodes.add(nodeId));
 
-                while (downstreamQueue.length > 0) {
-                    const currentNode = downstreamQueue.shift();
-                    const downstream = downstreamMap.get(currentNode) || [];
+                        // Add all links this incident actually passed through
+                        path.links.forEach(linkKey => {
+                            const idx = linkKeyToIndex[linkKey];
+                            if (idx !== undefined) {
+                                connectedLinks.add(idx);
+                            }
+                        });
+                    }
+                });
 
-                    downstream.forEach(([idx, nextTarget]) => {
-                        connectedLinks.add(idx);
-                        if (!downstreamVisited.has(nextTarget)) {
-                            downstreamVisited.add(nextTarget);
-                            connectedNodes.add(nextTarget);
-                            downstreamQueue.push(nextTarget);
-                        }
-                    });
-                }
+                console.log('[DEBUG] Connected nodes in actual path:', Array.from(connectedNodes).map(i => nodes[i]));
+                console.log('[DEBUG] Connected links in actual path:', connectedLinks.size);
 
-                // Trace upstream from source node
-                const upstreamQueue = [sourceNode];
-                const upstreamVisited = new Set([sourceNode]);
+                // Count how many of our selected incidents go through each node
+                const nodeCountsInPath = new Map();
+                selectedIncidents.forEach(incidentNumber => {
+                    const path = incidentPaths[incidentNumber];
+                    if (path) {
+                        path.nodes.forEach(nodeId => {
+                            nodeCountsInPath.set(nodeId, (nodeCountsInPath.get(nodeId) || 0) + 1);
+                        });
+                    }
+                });
 
-                while (upstreamQueue.length > 0) {
-                    const currentNode = upstreamQueue.shift();
-                    const upstream = upstreamMap.get(currentNode) || [];
-
-                    upstream.forEach(([idx, nextSource]) => {
-                        connectedLinks.add(idx);
-                        if (!upstreamVisited.has(nextSource)) {
-                            upstreamVisited.add(nextSource);
-                            connectedNodes.add(nextSource);
-                            upstreamQueue.push(nextSource);
-                        }
-                    });
-                }
-
-
-                // For link clicks, use the clicked link's value for all connected nodes
+                console.log('[DEBUG] Node counts in selected path:');
                 const updatedLabels = nodes.map((_, idx) => {
                     if (connectedNodes.has(idx)) {
-                        return `${nodeBaseNames[idx]} (${linkValue})`;
+                        const count = nodeCountsInPath.get(idx) || 0;
+                        console.log('[DEBUG]   Node', idx, nodeBaseNames[idx], 'count:', count);
+                        return `${nodeBaseNames[idx]} (${count})`;
                     }
                     return originalNodes[idx]; // Keep original for dimmed nodes
                 });
@@ -823,6 +915,8 @@
                     connectedLinks.has(idx) ? 'rgba(68, 114, 196, 0.5)' : 'rgba(200, 200, 200, 0.1)'
                 );
 
+                console.log('[DEBUG] Final updated labels:', updatedLabels.filter((_, idx) => connectedNodes.has(idx)));
+
                 Plotly.restyle('chart', {
                     'node.color': [nodeColors],
                     'node.label': [updatedLabels],
@@ -830,11 +924,13 @@
                 });
 
                 // Show ONLY incidents from the clicked link itself
-                const linkIncidents = linkIndexToIncidents[linkIndex] || [];
-                showIncidents(linkIncidents.sort());
+                console.log('[DEBUG] Showing', selectedIncidents.length, 'incidents for link', linkIndex);
+                console.log('[DEBUG] Link incidents:', selectedIncidents);
+                showIncidents(selectedIncidents.sort());
             }
 
             function showIncidents(incidents) {
+                console.log('[DEBUG] showIncidents called with', incidents.length, 'incidents');
                 const incidentListDiv = document.getElementById('incidentList');
                 const incidentNumbersDiv = document.getElementById('incidentNumbers');
                 const incidentCountSpan = document.getElementById('incidentCount');
@@ -871,6 +967,7 @@
             }
 
             function resetHighlight() {
+                console.log('[DEBUG] Resetting highlight to original state');
                 selectedNode = null;
                 selectedLink = null;
                 Plotly.restyle('chart', {
